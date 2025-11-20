@@ -79,19 +79,31 @@ def load_character(character_name, save_directory="data/save_games"):
         character = {}
         with open(file_path, "r") as file:
             for line in file:
+                line = line.strip()
+
+                # Skip empty or whitespace-only lines
+                if not line:
+                    continue
+
                 if ": " not in line:
                     raise InvalidSaveDataError("Invalid save format")
 
-                key, value = line.strip().split(": ", 1)
+                key, value = line.split(": ", 1)
                 key = key.lower()
 
                 # convert lists
                 if key in ["inventory", "active_quests", "completed_quests"]:
                     character[key] = value.split(",") if value else []
-                # convert numbers
+
+                # convert numeric fields
                 elif key in ["level", "health", "max_health",
                              "strength", "magic", "experience", "gold"]:
-                    character[key] = int(value)
+                    try:
+                        character[key] = int(value)
+                    except ValueError:
+                        raise InvalidSaveDataError("Numeric field is invalid")
+
+                # everything else stays as string
                 else:
                     character[key] = value
 
@@ -100,10 +112,6 @@ def load_character(character_name, save_directory="data/save_games"):
 
     except UnicodeDecodeError:
         raise SaveFileCorruptedError("Save file unreadable")
-
-    except ValueError:
-        raise InvalidSaveDataError("Numeric field is invalid")
-
 
 def list_saved_characters(save_directory="data/save_games"):
     if not os.path.exists(save_directory):
