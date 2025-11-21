@@ -10,8 +10,6 @@ This module handles loading and validating game data from text files.
 """
 
 import os
-import errno
-
 from custom_exceptions import (
     InvalidDataFormatError,
     MissingDataFileError,
@@ -40,15 +38,13 @@ def load_quests(filename="data/quests.txt"):
         blocks = _split_into_blocks(raw)
         quests = []
         for block in blocks:
-            if not block.strip():
-                continue
             q = parse_quest_block(block)
             quests.append(q)
-        return quests  # changed: return LIST not dict
+        return quests
     except InvalidDataFormatError:
         raise
     except Exception as e:
-        raise InvalidDataFormatError(f"Failed to parse quests file: {e}")  # changed error type
+        raise InvalidDataFormatError(f"Failed to parse quests file: {e}")
 
 
 def load_items(filename="data/items.txt"):
@@ -69,15 +65,13 @@ def load_items(filename="data/items.txt"):
         blocks = _split_into_blocks(raw)
         items = {}
         for block in blocks:
-            if not block.strip():
-                continue
             it = parse_item_block(block)
             items[it["item_id"]] = it
         return items
     except InvalidDataFormatError:
         raise
     except Exception as e:
-        raise InvalidDataFormatError(f"Failed to parse items file: {e}")  # consistent behavior
+        raise InvalidDataFormatError(f"Failed to parse items file: {e}")
 
 
 # ============================================================================
@@ -93,16 +87,13 @@ def validate_quest_data(quest_dict):
         if key not in quest_dict:
             raise InvalidDataFormatError(f"Quest missing required field: {key}")
 
-    # allow quest_id as string OR int
     if not isinstance(quest_dict["quest_id"], (int, str)):
         raise InvalidDataFormatError("quest_id must be string or integer")
 
-    # numeric fields still must be ints
     for key in ("reward_xp", "reward_gold", "required_level"):
         if not isinstance(quest_dict[key], int):
             raise InvalidDataFormatError(f"{key} must be integer")
 
-    # prerequisite may be None, int, or string ID
     prereq = quest_dict.get("prerequisite")
     if prereq is not None and not isinstance(prereq, (int, str)):
         raise InvalidDataFormatError("prerequisite must be int, string, or None")
@@ -110,8 +101,35 @@ def validate_quest_data(quest_dict):
     return True
 
 
+def validate_item_data(item_dict):
+    required = ["item_id", "name", "type", "effect", "cost", "description"]
+
+    for key in required:
+        if key not in item_dict:
+            raise InvalidDataFormatError(f"Item missing required field: {key}")
+
+    # Accept string or int item_id
+    if not isinstance(item_dict["item_id"], (int, str)):
+        raise InvalidDataFormatError("item_id must be string or integer")
+
+    # type must be string
+    if not isinstance(item_dict["type"], str):
+        raise InvalidDataFormatError("type must be string")
+
+    # effect must be string like "stat:value"
+    effect = item_dict["effect"]
+    if not isinstance(effect, str) or ":" not in effect:
+        raise InvalidDataFormatError("effect must be in 'stat:value' format")
+
+    # cost must be int
+    if not isinstance(item_dict["cost"], int):
+        raise InvalidDataFormatError("cost must be integer")
+
+    return True
+
+
 # ============================================================================
-# HELPER FUNCTIONS (PARSERS)
+# HELPER PARSERS
 # ============================================================================
 
 def parse_quest_block(lines):
@@ -130,26 +148,18 @@ def parse_quest_block(lines):
         val = val.strip()
 
         if key == "QUEST_ID":
-            # allow string OR integer
-            if val.isdigit():
-                data["quest_id"] = int(val)
-            else:
-                data["quest_id"] = val
+            data["quest_id"] = int(val) if val.isdigit() else val
 
         elif key == "PREREQUISITE":
             if val.upper() == "NONE":
                 data["prerequisite"] = None
             else:
-                # string prereqs allowed
-                if val.isdigit():
-                    data["prerequisite"] = int(val)
-                else:
-                    data["prerequisite"] = val
+                data["prerequisite"] = int(val) if val.isdigit() else val
 
         elif key in ("REWARD_XP", "REWARD_GOLD", "REQUIRED_LEVEL"):
             try:
                 data[key.lower()] = int(val)
-            except ValueError:
+            except:
                 raise InvalidDataFormatError(f"{key} must be integer")
 
         else:
@@ -175,22 +185,15 @@ def parse_item_block(lines):
         val = val.strip()
 
         if key == "ITEM_ID":
-            try:
-                data["item_id"] = int(val)
-            except ValueError:
-                raise InvalidDataFormatError("ITEM_ID must be integer")
+            # allow string IDs like 'health_potion'
+            data["item_id"] = int(val) if val.isdigit() else val
 
         elif key == "TYPE":
             data["type"] = val.lower()
 
         elif key == "EFFECT":
-            if ":" not in val:
-                raise InvalidDataFormatError("Effect format invalid")
-            stat, sval = val.split(":", 1)
-            try:
-                data["effect"] = {stat: int(sval)}
-            except:
-                raise InvalidDataFormatError("Effect value must be integer")
+            # keep raw string, validation will handle correctness
+            data["effect"] = val
 
         elif key == "COST":
             try:
@@ -205,9 +208,9 @@ def parse_item_block(lines):
     return data
 
 
-# internal helper
 def _split_into_blocks(raw):
     return [b for b in raw.split("\n\n") if b.strip()]
+
 
 
 # ============================================================================
