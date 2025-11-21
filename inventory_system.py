@@ -19,17 +19,13 @@ from custom_exceptions import (
 MAX_INVENTORY_SIZE = 20
 
 def _resolve_item_data(item_id, item_data):
+    """Helper to combine item_id and item_data"""
     if not item_data:
-        return {}
-    try:
-        if isinstance(item_data, dict) and item_id in item_data and isinstance(item_data[item_id], dict):
-            return item_data[item_id]
-    except Exception:
-        pass
-    if isinstance(item_data, dict):
-        return item_data
-    return {}
-
+        return None
+    data = item_data.copy()
+    data["id"] = item_id
+    return data
+    
 def has_item(character, item_id):
     return item_id in character.get("inventory", [])
 
@@ -98,6 +94,7 @@ def equip_armor(character, item_id, item_data):
     character["equipped_armor"] = item_id
 
 def purchase_item(character, item_id, item_data):
+    """Purchase an item if character has enough gold"""
     item = _resolve_item_data(item_id, item_data)
     if not item:
         raise ItemNotFoundError("Item data not found for purchase.")
@@ -109,10 +106,12 @@ def purchase_item(character, item_id, item_data):
     if character.get("gold", 0) < cost:
         raise InsufficientResourcesError("Not enough gold to purchase this item.")
 
+    # Deduct gold and add item to inventory
     character["gold"] -= cost
-    add_item_to_inventory(character, item_id)
-    return True
+    inventory = character.setdefault("inventory", {})
+    inventory[item_id] = inventory.get(item_id, 0) + 1
 
+    return True
 def sell_item(character, item_id, item_data, sell_ratio=0.5):
     if not has_item(character, item_id):
         raise ItemNotFoundError("You don't have that item to sell.")
