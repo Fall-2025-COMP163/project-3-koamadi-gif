@@ -17,88 +17,42 @@ from custom_exceptions import MissingDataFileError, InvalidDataFormatError
 # ============================================================================
 
 def load_quests(filename="data/quests.txt"):
-    """
-    Load quests from a file.
-    Returns a dictionary: quest_id -> quest_data dict
-    """
+    """Load quests from a file using robust parsing."""
     if not os.path.exists(filename):
         raise MissingDataFileError(f"Quest file {filename} not found.")
 
+    with open(filename, "r") as f:
+        raw = f.read()
+
+    blocks = _split_into_blocks(raw)
     quests = {}
-    try:
-        with open(filename, "r") as file:
-            current_quest = {}
-            for line in file:
-                line = line.strip()
-                if not line:
-                    # blank line means end of a quest
-                    if current_quest:
-                        if "quest_id" not in current_quest:
-                            raise InvalidDataFormatError("Quest missing quest_id")
-                        quests[current_quest["quest_id"]] = current_quest
-                        current_quest = {}
-                    continue
 
-                if ": " not in line:
-                    raise InvalidDataFormatError(f"Invalid line format: {line}")
+    for block in blocks:
+        quest_data = parse_quest_block(block)
+        quests[quest_data["quest_id"]] = quest_data
 
-                key, value = line.split(": ", 1)
-                current_quest[key.strip()] = value.strip()
-
-            # Add last quest if file doesn't end with blank line
-            if current_quest:
-                if "quest_id" not in current_quest:
-                    raise InvalidDataFormatError("Quest missing quest_id")
-                quests[current_quest["quest_id"]] = current_quest
-
-        return quests
-
-    except Exception as e:
-        raise InvalidDataFormatError(f"Error loading quests: {e}")
+    return quests
 
 # ============================================================================
 # ITEM DATA
 # ============================================================================
 
 def load_items(filename="data/items.txt"):
-    """
-    Load items from a file.
-    Returns a dictionary: item_id -> item_data dict
-    """
+    """Load items from a file using robust parsing."""
     if not os.path.exists(filename):
         raise MissingDataFileError(f"Item file {filename} not found.")
 
+    with open(filename, "r") as f:
+        raw = f.read()
+
+    blocks = _split_into_blocks(raw)
     items = {}
-    try:
-        with open(filename, "r") as file:
-            current_item = {}
-            for line in file:
-                line = line.strip()
-                if not line:
-                    if current_item:
-                        if "item_id" not in current_item:
-                            raise InvalidDataFormatError("Item missing item_id")
-                        items[current_item["item_id"]] = current_item
-                        current_item = {}
-                    continue
 
-                if ": " not in line:
-                    raise InvalidDataFormatError(f"Invalid line format: {line}")
+    for block in blocks:
+        item_data = parse_item_block(block)
+        items[item_data["item_id"]] = item_data
 
-                key, value = line.split(": ", 1)
-                current_item[key.strip()] = value.strip()
-
-            # Add last item if file doesn't end with blank line
-            if current_item:
-                if "item_id" not in current_item:
-                    raise InvalidDataFormatError("Item missing item_id")
-                items[current_item["item_id"]] = current_item
-
-        return items
-
-    except Exception as e:
-        raise InvalidDataFormatError(f"Error loading items: {e}")
-
+    return items
 
 # ============================================================================
 # VALIDATION
