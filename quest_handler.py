@@ -24,29 +24,27 @@ import character_manager  # Needed for gain_experience and add_gold
 # ============================================================================
 
 def accept_quest(character, quest_id, quest_data_dict):
+    """Accept a quest if character meets requirements"""
     if quest_id not in quest_data_dict:
         raise QuestNotFoundError(f"Quest '{quest_id}' not found")
 
     quest = quest_data_dict[quest_id]
 
     # Level requirement
-    if character["level"] < quest["required_level"]:
+    if character.get("level", 1) < quest.get("required_level", 1):
         raise InsufficientLevelError("Level too low to accept quest")
 
-    # Prerequisite
-    prereq = quest.get("prerequisite", "NONE")
-    if prereq != "NONE" and prereq not in character["completed_quests"]:
+    # Prerequisite check (normalize None / missing)
+    prereq = quest.get("prerequisite") or "NONE"
+    if prereq != "NONE" and prereq not in character.get("completed_quests", []):
         raise QuestRequirementsNotMetError(f"Prerequisite '{prereq}' not completed")
 
-    # Already completed / already active
-    if quest_id in character["completed_quests"]:
-        raise QuestAlreadyCompletedError("Quest already completed")
-    if quest_id in character["active_quests"]:
-        raise QuestAlreadyCompletedError("Quest already active")
+    # Add quest to active quests
+    active = character.setdefault("active_quests", [])
+    if quest_id not in active:
+        active.append(quest_id)
 
-    character["active_quests"].append(quest_id)
     return True
-
 
 def complete_quest(character, quest_id, quest_data_dict):
     if quest_id not in quest_data_dict:
