@@ -10,12 +10,17 @@ This module handles inventory management, item usage, and equipment.
 """
 
 from custom_exceptions import (
-    InventoryFullError,
     ItemNotFoundError,
-    InvalidItemTypeError
+    InventoryFullError,
+    InvalidItemTypeError,
+    InsufficientResourcesError
 )
 
 MAX_INVENTORY_SIZE = 20
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
 
 def _resolve_item_data(item_id, item_data):
     """
@@ -40,6 +45,10 @@ def _resolve_item_data(item_id, item_data):
 def has_item(character, item_id):
     return item_id in character.get("inventory", [])
 
+# ============================================================================
+# INVENTORY MANAGEMENT
+# ============================================================================
+
 def add_item_to_inventory(character, item_id):
     """Add an item to character's inventory."""
     if len(character["inventory"]) >= MAX_INVENTORY_SIZE:
@@ -53,17 +62,12 @@ def remove_item_from_inventory(character, item_id):
     character["inventory"].remove(item_id)
 
 def use_item(character, item_id, item_data):
-    """
-    Use a consumable item. item_data can be:
-      - {'health_potion': {'type':'consumable', 'effect':'health:20'}}
-      - or a single-item dict {'type':'consumable','effect':'health:20'}
-    """
+    """Use a consumable item."""
     if not has_item(character, item_id):
         raise ItemNotFoundError("You don't have that item!")
 
     item = _resolve_item_data(item_id, item_data)
     if not item:
-        # fallback: treat as invalid item data (but tests expect InvalidItemTypeError for wrong type)
         raise ItemNotFoundError("Item data not found.")
 
     if item.get("type") != "consumable":
@@ -79,59 +83,52 @@ def use_item(character, item_id, item_data):
                 character["health"] = min(character.get("max_health", 100), character.get("health", 0) + val)
             elif key == "gold":
                 character["gold"] = character.get("gold", 0) + val
-            # more effects could be supported
         except Exception:
-            # if effect parse fails, ignore and still remove item
-            pass
+            pass  # ignore invalid effect formatting
 
-    # consume item
     remove_item_from_inventory(character, item_id)
     return True
 
 def equip_weapon(character, item_id, item_data):
-    """
-    Equip a weapon.
-    item_data should be a dict like {'type': 'weapon', 'effect': 'strength:5'}
-    """
+    """Equip a weapon item."""
     if item_data.get("type") != "weapon":
         raise InvalidItemTypeError(f"{item_id} is not a weapon.")
 
     if item_id not in character["inventory"]:
         raise ItemNotFoundError(f"{item_id} not in inventory.")
 
-    # Parse effect
     effect = item_data.get("effect")
     if effect and effect.startswith("strength:"):
         bonus = int(effect.split(":")[1])
         character["strength"] += bonus
 
-    # Update equipment
     character["equipped"]["weapon"] = item_id
-    character["equipped_weapon"] = item_id  # Add top-level key for compatibility with tests
+    character["equipped_weapon"] = item_id  # for test compatibility
 
 def equip_armor(character, item_id, item_data):
-    """
-    Equip armor.
-    item_data should be a dict like {'type': 'armor', 'effect': 'defense:3'}
-    """
+    """Equip an armor item."""
     if item_data.get("type") != "armor":
         raise InvalidItemTypeError(f"{item_id} is not armor.")
 
     if item_id not in character["inventory"]:
         raise ItemNotFoundError(f"{item_id} not in inventory.")
 
-    # Parse effect
     effect = item_data.get("effect")
     if effect and effect.startswith("defense:"):
         bonus = int(effect.split(":")[1])
         character["defense"] += bonus
 
-    # Update equipment
     character["equipped"]["armor"] = item_id
-    character["equipped_armor"] = item_id  # Top-level key for test compatibility
+    character["equipped_armor"] = item_id  # for test compatibility
+
+# ============================================================================
+# BUYING / SELLING ITEMS
+# ============================================================================
+
 def purchase_item(character, item_id, item_data):
     """
-    item_data can be either mapping keyed by id or the item's attribute dict itself.
+    Purchase an item and add it to the character's inventory.
+    Raises InsufficientResourcesError if not enough gold.
     """
     item = _resolve_item_data(item_id, item_data)
     if not item:
@@ -144,21 +141,22 @@ def purchase_item(character, item_id, item_data):
     if character.get("gold", 0) < cost:
         raise InsufficientResourcesError("Not enough gold to purchase this item.")
 
-    # subtract gold and add to inventory
-    character["gold"] = character.get("gold", 0) - cost
+    character["gold"] -= cost
     add_item_to_inventory(character, item_id)
     return True
 
 def sell_item(character, item_id, item_data, sell_ratio=0.5):
+    """Sell an item from inventory for gold."""
     if not has_item(character, item_id):
         raise ItemNotFoundError("You don't have that item to sell.")
+
     item = _resolve_item_data(item_id, item_data)
     price = item.get("cost", 0)
     gained = int(price * sell_ratio)
-    character["gold"] = character.get("gold", 0) + gained
+
+    character["gold"] += gained
     remove_item_from_inventory(character, item_id)
     return gained
-
 # ============================================================================
 # TESTING
 # ============================================================================
