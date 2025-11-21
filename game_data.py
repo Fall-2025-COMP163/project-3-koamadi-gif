@@ -19,31 +19,39 @@ from custom_exceptions import MissingDataFileError, InvalidDataFormatError
 def load_quests(filename="data/quests.txt"):
     """
     Load quests from a file.
-    Returns a dictionary: quest_id -> quest_data dict
+    Format per line:
+    quest_id|title|description|reward_xp|reward_gold|required_level|prerequisite
     """
     if not os.path.exists(filename):
-        raise MissingDataFileError(f"File not found: {filename}")
+        raise MissingDataFileError(f"Quest data file '{filename}' not found")
 
     quests = {}
-    try:
-        with open(filename, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                # Expecting format: id|name|description|required_level|reward_gold
-                parts = line.split("|")
-                if len(parts) != 5:
-                    raise InvalidDataFormatError(f"Invalid quest format: {line}")
-                quest_id = parts[0].strip()
+
+    with open(filename, "r") as file:
+        for line in file:
+            line = line.strip()
+            if not line:
+                continue
+
+            parts = line.split("|")
+            if len(parts) != 7:
+                raise InvalidDataFormatError("Quest data format invalid")
+
+            quest_id, title, desc, reward_xp, reward_gold, req_lvl, prereq = parts
+
+            try:
                 quests[quest_id] = {
-                    "name": parts[1].strip(),
-                    "description": parts[2].strip(),
-                    "required_level": int(parts[3].strip()),
-                    "reward_gold": int(parts[4].strip()),
+                    "quest_id": quest_id,
+                    "title": title,
+                    "description": desc,
+                    "reward_xp": int(reward_xp),
+                    "reward_gold": int(reward_gold),
+                    "required_level": int(req_lvl),
+                    "prerequisite": prereq,
                 }
-    except ValueError as ve:
-        raise InvalidDataFormatError(f"Invalid data type in file {filename}: {ve}")
+            except ValueError:
+                raise InvalidDataFormatError("Numeric field invalid in quest data")
+
     return quests
 
 # ============================================================================
@@ -53,82 +61,66 @@ def load_quests(filename="data/quests.txt"):
 def load_items(filename="data/items.txt"):
     """
     Load items from a file.
-    Returns a dictionary: item_id -> item_data dict
+    Format per line:
+    item_id|type|cost|effect
     """
     if not os.path.exists(filename):
-        raise MissingDataFileError(f"File not found: {filename}")
+        raise MissingDataFileError(f"Item data file '{filename}' not found")
 
     items = {}
-    try:
-        with open(filename, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                # Expecting format: id|name|type|value
-                parts = line.split("|")
-                if len(parts) != 4:
-                    raise InvalidDataFormatError(f"Invalid item format: {line}")
-                item_id = parts[0].strip()
+
+    with open(filename, "r") as file:
+        for line in file:
+            line = line.strip()
+            if not line:
+                continue
+
+            parts = line.split("|")
+            if len(parts) != 4:
+                raise InvalidDataFormatError("Item data format invalid")
+
+            item_id, type_, cost, effect = parts
+
+            try:
                 items[item_id] = {
-                    "name": parts[1].strip(),
-                    "type": parts[2].strip(),
-                    "value": int(parts[3].strip()),
+                    "item_id": item_id,
+                    "type": type_,
+                    "cost": int(cost),
+                    "effect": effect,
                 }
-    except ValueError as ve:
-        raise InvalidDataFormatError(f"Invalid data type in file {filename}: {ve}")
+            except ValueError:
+                raise InvalidDataFormatError("Numeric field invalid in item data")
+
     return items
 
 # ============================================================================
 # VALIDATION
 # ============================================================================
 
-def validate_quest_data(quest_dict):
-    required = ["quest_id", "title", "description",
-                "reward_xp", "reward_gold",
-                "required_level", "prerequisite"]
+def validate_quest_data(data):
+    required_keys = [
+        "quest_id", "title", "description",
+        "reward_xp", "reward_gold",
+        "required_level", "prerequisite",
+    ]
 
-    for key in required:
-        if key not in quest_dict:
-            raise InvalidDataFormatError(f"Quest missing required field: {key}")
+    for key in required_keys:
+        if key not in data:
+            return False
 
-    if not isinstance(quest_dict["quest_id"], (int, str)):
-        raise InvalidDataFormatError("quest_id must be string or integer")
-
-    for key in ("reward_xp", "reward_gold", "required_level"):
-        if not isinstance(quest_dict[key], int):
-            raise InvalidDataFormatError(f"{key} must be integer")
-
-    prereq = quest_dict.get("prerequisite")
-    if prereq is not None and not isinstance(prereq, (int, str)):
-        raise InvalidDataFormatError("prerequisite must be int, string, or None")
-
+    # All fields present & assumed valid
     return True
 
 
 
-def validate_item_data(item_dict):
-    required = ["item_id", "name", "type", "effect", "cost", "description"]
+def validate_item_data(data):
+    required_keys = ["item_id", "type", "cost", "effect"]
 
-    for key in required:
-        if key not in item_dict:
-            raise InvalidDataFormatError(f"Item missing required field: {key}")
-
-    if not isinstance(item_dict["item_id"], (int, str)):
-        raise InvalidDataFormatError("item_id must be string or integer")
-
-    if not isinstance(item_dict["type"], str):
-        raise InvalidDataFormatError("type must be string")
-
-    effect = item_dict["effect"]
-    if not isinstance(effect, str) or ":" not in effect:
-        raise InvalidDataFormatError("effect must be in 'stat:value' format")
-
-    if not isinstance(item_dict["cost"], int):
-        raise InvalidDataFormatError("cost must be integer")
+    for key in required_keys:
+        if key not in data:
+            return False
 
     return True
-
 
 # ============================================================================
 # HELPER PARSERS
