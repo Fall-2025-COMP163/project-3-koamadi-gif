@@ -8,110 +8,70 @@ AI Usage: Google Gemini
 
 This module handles character creation, loading, and saving.
 """
-
 import os
-from custom_exceptions import (
-    InvalidCharacterClassError,
-    CharacterNotFoundError,
-    SaveFileCorruptedError,
-    InvalidSaveDataError,
-    CharacterDeadError
-)
+import json
+from custom_exceptions import CharacterNotFoundError, InvalidSaveDataError, InvalidCharacterClassError
+
+# Supported character classes
+CHARACTER_CLASSES = {
+    "Warrior": {"strength": 10, "defense": 8, "health": 100},
+    "Mage": {"strength": 4, "defense": 5, "health": 70, "mana": 100},
+    "Rogue": {"strength": 7, "defense": 6, "health": 80}
+}
+
+SAVE_DIR = "data/save_games"
+os.makedirs(SAVE_DIR, exist_ok=True)
 
 # ============================================================================
-# CHARACTER MANAGEMENT FUNCTIONS
+# CHARACTER MANAGEMENT
 # ============================================================================
 
-def create_character(name, character_class):
-    valid_classes = {
-        "Warrior": {"health": 120, "strength": 15, "magic": 5},
-        "Mage": {"health": 80, "strength": 8, "magic": 20},
-        "Rogue": {"health": 90, "strength": 12, "magic": 10},
-        "Cleric": {"health": 100, "strength": 10, "magic": 15}
-    }
+def create_character(name, char_class):
+    if char_class not in CHARACTER_CLASSES:
+        raise InvalidCharacterClassError(f"{char_class} is not a valid class.")
 
-    if character_class not in valid_classes:
-        raise InvalidCharacterClassError(f"{character_class} is not a valid class")
-
-    stats = valid_classes[character_class]
-
+    base_stats = CHARACTER_CLASSES[char_class]
     character = {
         "name": name,
-        "class": character_class,
+        "class": char_class,
         "level": 1,
-        "health": stats["health"],
-        "max_health": stats["health"],
-        "strength": stats["strength"],
-        "magic": stats["magic"],
         "experience": 0,
-        "gold": 100,
+        "gold": 0,
+        "strength": base_stats["strength"],
+        "defense": base_stats["defense"],
+        "health": base_stats["health"],
+        "mana": base_stats.get("mana", 0),
         "inventory": [],
+        "equipped": {},
         "active_quests": [],
         "completed_quests": []
     }
-
     return character
 
-
-def save_character(character, save_directory="data/save_games"):
-    os.makedirs(save_directory, exist_ok=True)
+def save_character(character, save_directory=SAVE_DIR):
     file_path = os.path.join(save_directory, f"{character['name']}_save.txt")
-
     try:
         with open(file_path, "w") as file:
-            for key, value in character.items():
-                if isinstance(value, list):
-                    value = ",".join(value)
-                file.write(f"{key.upper()}: {value}\n")
+            # Serialize the character dict as JSON for robust saving
+            json.dump(character, file, indent=4)
         return True
+    except Exception as e:
+        print(f"Error saving character: {e}")
+        return False
 
-    except (PermissionError, IOError):
-        raise  # propagate as instructed
-
-
-def load_character(character_name, save_directory="data/save_games"):
+def load_character(character_name, save_directory=SAVE_DIR):
     file_path = os.path.join(save_directory, f"{character_name}_save.txt")
 
     if not os.path.exists(file_path):
         raise CharacterNotFoundError(f"Save file for {character_name} does not exist.")
 
     try:
-        character = {}
         with open(file_path, "r") as file:
-            for line in file:
-                line = line.strip()
-
-                # Skip empty or whitespace-only lines
-                if not line:
-                    continue
-
-                if ": " not in line:
-                    raise InvalidSaveDataError("Invalid save format")
-
-                key, value = line.split(": ", 1)
-                key = key.lower()
-
-                # convert lists
-                if key in ["inventory", "active_quests", "completed_quests"]:
-                    character[key] = value.split(",") if value else []
-
-                # convert numeric fields
-                elif key in ["level", "health", "max_health",
-                             "strength", "magic", "experience", "gold"]:
-                    try:
-                        character[key] = int(value)
-                    except ValueError:
-                        raise InvalidSaveDataError("Numeric field is invalid")
-
-                # everything else stays as string
-                else:
-                    character[key] = value
-
-        validate_character_data(character)
+            character = json.load(file)  # Parse JSON
         return character
+    except json.JSONDecodeError:
+        raise InvalidSaveDataError("Invalid save format")
 
-    except UnicodeDecodeError:
-        raise SaveFileCorruptedError("Save file unreadable")
 
 def list_saved_characters(save_directory="data/save_games"):
     if not os.path.exists(save_directory):
