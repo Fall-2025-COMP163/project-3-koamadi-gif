@@ -18,13 +18,14 @@ from custom_exceptions import (
 )
 
 # ============================================================================
-# CONSTANTS
+# CHARACTER CLASSES
 # ============================================================================
 
 CHARACTER_CLASSES = {
     "Warrior": {"strength": 10, "defense": 8, "health": 100},
     "Mage": {"strength": 4, "defense": 5, "health": 70, "mana": 100},
-    "Rogue": {"strength": 7, "defense": 6, "health": 80}
+    "Rogue": {"strength": 7, "defense": 6, "health": 80},
+    "Cleric": {"strength": 5, "defense": 6, "health": 80, "mana": 80}  # Added for integration tests
 }
 
 SAVE_DIR = "data/save_games"
@@ -69,10 +70,8 @@ def save_character(character, save_directory=SAVE_DIR):
 
 def load_character(character_name, save_directory=SAVE_DIR):
     file_path = os.path.join(save_directory, f"{character_name}_save.txt")
-
     if not os.path.exists(file_path):
         raise CharacterNotFoundError(f"Save file for {character_name} does not exist.")
-
     try:
         with open(file_path, "r") as file:
             character = json.load(file)
@@ -83,19 +82,12 @@ def load_character(character_name, save_directory=SAVE_DIR):
 def list_saved_characters(save_directory=SAVE_DIR):
     if not os.path.exists(save_directory):
         return []
-    
-    names = []
-    for filename in os.listdir(save_directory):
-        if filename.endswith("_save.txt"):
-            names.append(filename.replace("_save.txt", ""))
-    return names
+    return [f.replace("_save.txt", "") for f in os.listdir(save_directory) if f.endswith("_save.txt")]
 
 def delete_character(character_name, save_directory=SAVE_DIR):
     file_path = os.path.join(save_directory, f"{character_name}_save.txt")
-    
     if not os.path.exists(file_path):
         raise CharacterNotFoundError(f"No save found for {character_name}")
-
     os.remove(file_path)
     return True
 
@@ -151,21 +143,19 @@ def validate_character_data(character):
         "strength", "magic", "experience", "gold",
         "inventory", "active_quests", "completed_quests"
     ]
-
     for field in required_fields:
         if field not in character:
             raise InvalidSaveDataError(f"Missing field: {field}")
 
     if not isinstance(character["inventory"], list):
         raise InvalidSaveDataError("Inventory must be a list")
-
     if not isinstance(character["active_quests"], list):
         raise InvalidSaveDataError("Active quests must be a list")
-
     if not isinstance(character["completed_quests"], list):
         raise InvalidSaveDataError("Completed quests must be a list")
 
     return True
+
 
 # ============================================================================
 # TESTING
