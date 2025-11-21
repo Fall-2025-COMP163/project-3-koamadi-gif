@@ -81,6 +81,7 @@ def validate_quest_data(quest_dict):
     return True
 
 
+
 def validate_item_data(item_dict):
     required = ["item_id", "name", "type", "effect", "cost", "description"]
 
@@ -88,20 +89,16 @@ def validate_item_data(item_dict):
         if key not in item_dict:
             raise InvalidDataFormatError(f"Item missing required field: {key}")
 
-    # Accept string or int item_id
     if not isinstance(item_dict["item_id"], (int, str)):
         raise InvalidDataFormatError("item_id must be string or integer")
 
-    # type must be string
     if not isinstance(item_dict["type"], str):
         raise InvalidDataFormatError("type must be string")
 
-    # effect must be string like "stat:value"
     effect = item_dict["effect"]
     if not isinstance(effect, str) or ":" not in effect:
         raise InvalidDataFormatError("effect must be in 'stat:value' format")
 
-    # cost must be int
     if not isinstance(item_dict["cost"], int):
         raise InvalidDataFormatError("cost must be integer")
 
@@ -129,19 +126,16 @@ def parse_quest_block(lines):
 
         if key == "QUEST_ID":
             data["quest_id"] = int(val) if val.isdigit() else val
-
         elif key == "PREREQUISITE":
             if val.upper() == "NONE":
                 data["prerequisite"] = None
             else:
                 data["prerequisite"] = int(val) if val.isdigit() else val
-
         elif key in ("REWARD_XP", "REWARD_GOLD", "REQUIRED_LEVEL"):
             try:
                 data[key.lower()] = int(val)
             except:
                 raise InvalidDataFormatError(f"{key} must be integer")
-
         else:
             data[key.lower()] = val
 
@@ -165,28 +159,21 @@ def parse_item_block(lines):
         val = val.strip()
 
         if key == "ITEM_ID":
-            # allow string IDs like 'health_potion'
             data["item_id"] = int(val) if val.isdigit() else val
-
         elif key == "TYPE":
             data["type"] = val.lower()
-
         elif key == "EFFECT":
-            # keep raw string, validation will handle correctness
             data["effect"] = val
-
         elif key == "COST":
             try:
                 data["cost"] = int(val)
             except:
                 raise InvalidDataFormatError("Cost must be integer")
-
         else:
             data[key.lower()] = val
 
     validate_item_data(data)
     return data
-
 
 def _split_into_blocks(raw):
     return [b for b in raw.split("\n\n") if b.strip()]
