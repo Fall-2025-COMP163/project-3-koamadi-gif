@@ -17,20 +17,33 @@ from custom_exceptions import MissingDataFileError, InvalidDataFormatError
 # ============================================================================
 
 def load_quests(filename="data/quests.txt"):
-    """Load quests from a file using robust parsing."""
+    """
+    Load quests from a file.
+    Returns a dictionary: quest_id -> quest_data dict
+    """
     if not os.path.exists(filename):
-        raise MissingDataFileError(f"Quest file {filename} not found.")
+        raise MissingDataFileError(f"File not found: {filename}")
 
-    with open(filename, "r") as f:
-        raw = f.read()
-
-    blocks = _split_into_blocks(raw)
     quests = {}
-
-    for block in blocks:
-        quest_data = parse_quest_block(block)
-        quests[quest_data["quest_id"]] = quest_data
-
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                # Expecting format: id|name|description|required_level|reward_gold
+                parts = line.split("|")
+                if len(parts) != 5:
+                    raise InvalidDataFormatError(f"Invalid quest format: {line}")
+                quest_id = parts[0].strip()
+                quests[quest_id] = {
+                    "name": parts[1].strip(),
+                    "description": parts[2].strip(),
+                    "required_level": int(parts[3].strip()),
+                    "reward_gold": int(parts[4].strip()),
+                }
+    except ValueError as ve:
+        raise InvalidDataFormatError(f"Invalid data type in file {filename}: {ve}")
     return quests
 
 # ============================================================================
@@ -38,20 +51,32 @@ def load_quests(filename="data/quests.txt"):
 # ============================================================================
 
 def load_items(filename="data/items.txt"):
-    """Load items from a file using robust parsing."""
+    """
+    Load items from a file.
+    Returns a dictionary: item_id -> item_data dict
+    """
     if not os.path.exists(filename):
-        raise MissingDataFileError(f"Item file {filename} not found.")
+        raise MissingDataFileError(f"File not found: {filename}")
 
-    with open(filename, "r") as f:
-        raw = f.read()
-
-    blocks = _split_into_blocks(raw)
     items = {}
-
-    for block in blocks:
-        item_data = parse_item_block(block)
-        items[item_data["item_id"]] = item_data
-
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                # Expecting format: id|name|type|value
+                parts = line.split("|")
+                if len(parts) != 4:
+                    raise InvalidDataFormatError(f"Invalid item format: {line}")
+                item_id = parts[0].strip()
+                items[item_id] = {
+                    "name": parts[1].strip(),
+                    "type": parts[2].strip(),
+                    "value": int(parts[3].strip()),
+                }
+    except ValueError as ve:
+        raise InvalidDataFormatError(f"Invalid data type in file {filename}: {ve}")
     return items
 
 # ============================================================================
