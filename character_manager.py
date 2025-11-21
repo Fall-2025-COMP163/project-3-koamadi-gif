@@ -9,25 +9,21 @@ AI Usage: Google Gemini
 This module handles character creation, loading, and saving.
 """
 import os
-import json
-from typing import Dict, Any
-
 from custom_exceptions import (
+    InvalidCharacterClassError,
     CharacterNotFoundError,
     InvalidSaveDataError,
-    InvalidCharacterClassError,
-    CharacterDeadError,
+    CharacterDeadError
 )
-
 # ============================================================================ #
 # CONFIG / CONSTANTS
 # ============================================================================ #
 
 CHARACTER_CLASSES = {
-    "Warrior": {"strength": 10, "defense": 8, "health": 100},
-    "Mage": {"strength": 4, "defense": 5, "health": 70, "mana": 100},
-    "Rogue": {"strength": 7, "defense": 6, "health": 80},
-    "Cleric": {"strength": 5, "defense": 6, "health": 80, "mana": 80},
+    "Warrior": {"strength": 10, "defense": 8, "health": 120, "gold": 50},
+    "Mage": {"strength": 4, "defense": 3, "health": 80, "gold": 10},
+    "Rogue": {"strength": 7, "defense": 5, "health": 100, "gold": 40},
+    "Cleric": {"strength": 6, "defense": 7, "health": 90, "gold": 20}
 }
 
 # Save directory - create if missing
@@ -42,106 +38,82 @@ DEFAULT_INVENTORY_LIMIT = 20
 # ============================================================================ #
 
 
-def create_character(name: str, char_class: str) -> Dict[str, Any]:
-    """
-    Create and return a new character dict.
-    - Ensures keys expected by tests are present.
-    - Provides both 'xp' and 'experience' for compatibility.
-    - Provides both 'equipment' and 'equipped' (some tests expect one or the other).
-    """
+def create_character(name, char_class):
     if char_class not in CHARACTER_CLASSES:
-        raise InvalidCharacterClassError(f"{char_class} is not a valid class.")
+        raise InvalidCharacterClassError(f"Invalid class: {char_class}")
 
-    base_stats = CHARACTER_CLASSES[char_class]
-
-    # Starting gold: ensure Mage has enough to buy cheap shop items in tests
-    starting_gold_by_class = {
-        "Warrior": 50,
-        "Mage": 100,   # intentionally generous so shop tests pass
-        "Rogue": 40,
-        "Cleric": 60,
-    }
-    gold = starting_gold_by_class.get(char_class, 20)
-
+    stats = CHARACTER_CLASSES[char_class].copy()
     character = {
         "name": name,
         "class": char_class,
         "level": 1,
-        # provide both keys many tests reference one or the other
-        "experience": 0,
-        "xp": 0,
-        "gold": gold,
-        "strength": base_stats["strength"],
-        "defense": base_stats["defense"],
-        "health": base_stats["health"],
-        "max_health": base_stats["health"],
-        # canonical key used in some code is 'magic', others 'mana'
-        "magic": base_stats.get("mana", 0),
-        "mana": base_stats.get("mana", 0),
-        "inventory": [],
-        # some tests expect 'equipment', others 'equipped'
-        "equipment": {},
-        "equipped": {},
-        "active_quests": [],
-        "completed_quests": [],
-        # optional bookkeeping
-        "_inventory_limit": DEFAULT_INVENTORY_LIMIT,
+        "exp": 0,
+        "gold": stats["gold"],
+        "health": stats["health"],
+        "max_health": stats["health"],
     }
-
     return character
 
+def save_character(character, filename):
+    if character["health"] <= 0:
+        raise CharacterDeadError("Cannot save a dead character")
 
-def save_character(character: Dict[str, Any], save_directory: str = SAVE_DIR) -> bool:
-    """
-    Save a character to JSON in the save_directory.
-    Returns True on success, False on error.
-    """
-    if not os.path.exists(save_directory):
-        os.makedirs(save_directory, exist_ok=True)
-
-    filename = f"{character['name']}_save.txt"
-    file_path = os.path.join(save_directory, filename)
     try:
-        # keep file human-readable for graders
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(character, f, ensure_ascii=False, indent=2)
-        return True
+        with open(filename, "w") as f:
+            f.write(
+                f"{character['name']},"
+                f"{character['class']},"
+                f"{character['level']},"
+                f"{character['exp']},"
+                f"{character['gold']},"
+                f"{character['health']},"
+                f"{character['max_health']}"
+            )
     except Exception:
-        return False
+        raise InvalidSaveDataError("Failed to save character")
 
 
-def load_character(character_name: str, save_directory: str = SAVE_DIR) -> Dict[str, Any]:
-    """
-    Load character JSON from the save directory. Raises CharacterNotFoundError if missing,
-    InvalidSaveDataError if content is malformed.
-    """
-    filename = f"{character_name}_save.txt"
-    file_path = os.path.join(save_directory, filename)
-    if not os.path.exists(file_path):
-        raise CharacterNotFoundError(f"Save file for {character_name} does not exist.")
+def load_character(filename):
+    if not os.path.exists(filename):
+        raise CharacterNotFoundError(f"Character file '{filename}' not found")
 
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            character = json.load(f)
-    except json.JSONDecodeError:
-        raise InvalidSaveDataError("Invalid save format")
-    except Exception as e:
-        # Wrap unexpected IO errors as CharacterNotFoundError for compatibility
-        raise CharacterNotFoundError(f"Unable to load save for {character_name}: {e}")
+        with open(filename, "r") as f:
+            data = f.read().strip()
+    except Exception:
+        raise InvalidSaveDataError("Unable to read character file")
 
-    # Normalize experience fields if needed
-    if "xp" not in character and "experience" in character:
-        character["xp"] = character["experience"]
-    if "experience" not in character and "xp" in character:
-        character["experience"] = character["xp"]
+    parts = data.split(",")
 
-    # Ensure both magic/mana keys exist for compatibility
-    if "magic" not in character:
-        character["magic"] = character.get("mana", 0)
-    if "mana" not in character:
-        character["mana"] = character.get("magic", 0)
+    if len(parts) != 7:
+        raise InvalidSaveDataError("Saved data incorrectly formatted")
 
-    return character
+    try:
+        name = parts[0]
+        char_class = parts[1]
+        level = int(parts[2])
+        exp = int(parts[3])
+        gold = int(parts[4])
+        health = int(parts[5])
+        max_health = int(parts[6])
+    except Exception:
+        raise InvalidSaveDataError("Non-numeric data where expected")
+
+    if char_class not in CHARACTER_CLASSES:
+        raise InvalidCharacterClassError("Unknown character class")
+
+    if health <= 0:
+        raise CharacterDeadError("Character is dead upon loading")
+
+    return {
+        "name": name,
+        "class": char_class,
+        "level": level,
+        "exp": exp,
+        "gold": gold,
+        "health": health,
+        "max_health": max_health,
+    }
 
 
 def list_saved_characters(save_directory: str = SAVE_DIR) -> list:
