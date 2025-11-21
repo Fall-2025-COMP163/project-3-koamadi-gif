@@ -12,7 +12,6 @@ This module handles inventory management, item usage, and equipment.
 from custom_exceptions import (
     InventoryFullError,
     ItemNotFoundError,
-    InsufficientResourcesError,
     InvalidItemTypeError
 )
 
@@ -42,18 +41,16 @@ def has_item(character, item_id):
     return item_id in character.get("inventory", [])
 
 def add_item_to_inventory(character, item_id):
-    inv = character.setdefault("inventory", [])
-    if len(inv) >= MAX_INVENTORY_SIZE:
+    """Add an item to character's inventory."""
+    if len(character["inventory"]) >= MAX_INVENTORY_SIZE:
         raise InventoryFullError("Inventory is full.")
-    inv.append(item_id)
-    return True
+    character["inventory"].append(item_id)
 
 def remove_item_from_inventory(character, item_id):
-    inv = character.setdefault("inventory", [])
-    if item_id not in inv:
-        raise ItemNotFoundError("Item not in inventory.")
-    inv.remove(item_id)
-    return True
+    """Remove an item from character's inventory."""
+    if item_id not in character["inventory"]:
+        raise ItemNotFoundError(f"Item {item_id} not found in inventory.")
+    character["inventory"].remove(item_id)
 
 def use_item(character, item_id, item_data):
     """
@@ -92,53 +89,46 @@ def use_item(character, item_id, item_data):
     return True
 
 def equip_weapon(character, item_id, item_data):
-    if not has_item(character, item_id):
-        raise ItemNotFoundError("You don't have that weapon!")
+    """
+    Equip a weapon.
+    item_data should be a dict like {'type': 'weapon', 'effect': 'strength:5'}
+    """
+    if item_data.get("type") != "weapon":
+        raise InvalidItemTypeError(f"{item_id} is not a weapon.")
 
-    item = _resolve_item_data(item_id, item_data)
-    if not item:
-        raise ItemNotFoundError("Weapon data not found.")
+    if item_id not in character["inventory"]:
+        raise ItemNotFoundError(f"{item_id} not in inventory.")
 
-    if item.get("type") != "weapon":
-        raise InvalidItemTypeError("Item is not a weapon.")
+    # Parse effect
+    effect = item_data.get("effect")
+    if effect and effect.startswith("strength:"):
+        bonus = int(effect.split(":")[1])
+        character["strength"] += bonus
 
-    # parse effect like "strength:5"
-    eff = item.get("effect", "")
-    if eff:
-        try:
-            key, val = eff.split(":", 1)
-            val = int(val)
-            character[key] = character.get(key, 0) + val
-        except Exception:
-            pass
-
-    # mark equipped (simple)
-    character.setdefault("equipped", {})["weapon"] = item_id
-    return True
+    # Update equipment
+    character["equipped"]["weapon"] = item_id
+    character["equipped_weapon"] = item_id  # Add top-level key for compatibility with tests
 
 def equip_armor(character, item_id, item_data):
-    if not has_item(character, item_id):
-        raise ItemNotFoundError("You don't have that armor!")
+    """
+    Equip armor.
+    item_data should be a dict like {'type': 'armor', 'effect': 'defense:3'}
+    """
+    if item_data.get("type") != "armor":
+        raise InvalidItemTypeError(f"{item_id} is not armor.")
 
-    item = _resolve_item_data(item_id, item_data)
-    if not item:
-        raise ItemNotFoundError("Armor data not found.")
+    if item_id not in character["inventory"]:
+        raise ItemNotFoundError(f"{item_id} not in inventory.")
 
-    if item.get("type") != "armor":
-        raise InvalidItemTypeError("Item is not armor.")
+    # Parse effect
+    effect = item_data.get("effect")
+    if effect and effect.startswith("defense:"):
+        bonus = int(effect.split(":")[1])
+        character["defense"] += bonus
 
-    eff = item.get("effect", "")
-    if eff:
-        try:
-            key, val = eff.split(":", 1)
-            val = int(val)
-            character[key] = character.get(key, 0) + val
-        except Exception:
-            pass
-
-    character.setdefault("equipped", {})["armor"] = item_id
-    return True
-
+    # Update equipment
+    character["equipped"]["armor"] = item_id
+    character["equipped_armor"] = item_id  # Top-level key for test compatibility
 def purchase_item(character, item_id, item_data):
     """
     item_data can be either mapping keyed by id or the item's attribute dict itself.
