@@ -10,68 +10,94 @@ This module handles loading and validating game data from text files.
 """
 
 import os
-from custom_exceptions import (
-    InvalidDataFormatError,
-    MissingDataFileError,
-    CorruptedDataError
-)
+from custom_exceptions import MissingDataFileError, InvalidDataFormatError
 
 # ============================================================================
 # DATA LOADING FUNCTIONS
 # ============================================================================
 
 def load_quests(filename="data/quests.txt"):
+    """
+    Load quests from a file.
+    Returns a dictionary: quest_id -> quest_data dict
+    """
     if not os.path.exists(filename):
-        raise MissingDataFileError(f"Quest data file not found: {filename}")
+        raise MissingDataFileError(f"Quest file {filename} not found.")
 
+    quests = {}
     try:
-        with open(filename, "r", encoding="utf-8") as f:
-            raw = f.read()
-    except FileNotFoundError:
-        raise MissingDataFileError(f"Quest data file not found: {filename}")
-    except PermissionError as pe:
-        raise CorruptedDataError(f"Permission denied reading quests file: {pe}")
-    except Exception as e:
-        raise CorruptedDataError(f"Failed to read quests file: {e}")
+        with open(filename, "r") as file:
+            current_quest = {}
+            for line in file:
+                line = line.strip()
+                if not line:
+                    # blank line means end of a quest
+                    if current_quest:
+                        if "quest_id" not in current_quest:
+                            raise InvalidDataFormatError("Quest missing quest_id")
+                        quests[current_quest["quest_id"]] = current_quest
+                        current_quest = {}
+                    continue
 
-    try:
-        blocks = _split_into_blocks(raw)
-        quests = []
-        for block in blocks:
-            q = parse_quest_block(block)
-            quests.append(q)
+                if ": " not in line:
+                    raise InvalidDataFormatError(f"Invalid line format: {line}")
+
+                key, value = line.split(": ", 1)
+                current_quest[key.strip()] = value.strip()
+
+            # Add last quest if file doesn't end with blank line
+            if current_quest:
+                if "quest_id" not in current_quest:
+                    raise InvalidDataFormatError("Quest missing quest_id")
+                quests[current_quest["quest_id"]] = current_quest
+
         return quests
-    except InvalidDataFormatError:
-        raise
-    except Exception as e:
-        raise InvalidDataFormatError(f"Failed to parse quests file: {e}")
 
+    except Exception as e:
+        raise InvalidDataFormatError(f"Error loading quests: {e}")
+
+# ============================================================================
+# ITEM DATA
+# ============================================================================
 
 def load_items(filename="data/items.txt"):
+    """
+    Load items from a file.
+    Returns a dictionary: item_id -> item_data dict
+    """
     if not os.path.exists(filename):
-        raise MissingDataFileError(f"Item data file not found: {filename}")
+        raise MissingDataFileError(f"Item file {filename} not found.")
 
+    items = {}
     try:
-        with open(filename, "r", encoding="utf-8") as f:
-            raw = f.read()
-    except FileNotFoundError:
-        raise MissingDataFileError(f"Item data file not found: {filename}")
-    except PermissionError as pe:
-        raise CorruptedDataError(f"Permission denied reading items file: {pe}")
-    except Exception as e:
-        raise CorruptedDataError(f"Failed to read items file: {e}")
+        with open(filename, "r") as file:
+            current_item = {}
+            for line in file:
+                line = line.strip()
+                if not line:
+                    if current_item:
+                        if "item_id" not in current_item:
+                            raise InvalidDataFormatError("Item missing item_id")
+                        items[current_item["item_id"]] = current_item
+                        current_item = {}
+                    continue
 
-    try:
-        blocks = _split_into_blocks(raw)
-        items = {}
-        for block in blocks:
-            it = parse_item_block(block)
-            items[it["item_id"]] = it
+                if ": " not in line:
+                    raise InvalidDataFormatError(f"Invalid line format: {line}")
+
+                key, value = line.split(": ", 1)
+                current_item[key.strip()] = value.strip()
+
+            # Add last item if file doesn't end with blank line
+            if current_item:
+                if "item_id" not in current_item:
+                    raise InvalidDataFormatError("Item missing item_id")
+                items[current_item["item_id"]] = current_item
+
         return items
-    except InvalidDataFormatError:
-        raise
+
     except Exception as e:
-        raise InvalidDataFormatError(f"Failed to parse items file: {e}")
+        raise InvalidDataFormatError(f"Error loading items: {e}")
 
 
 # ============================================================================
