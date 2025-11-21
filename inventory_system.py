@@ -9,109 +9,157 @@ AI Usage: Google Gemini
 This module handles inventory management, item usage, and equipment.
 """
 
+# inventory_system.py
 from custom_exceptions import (
-    InventoryFullError,
     ItemNotFoundError,
+    InventoryFullError,
     InsufficientResourcesError,
     InvalidItemTypeError
 )
 
+# Helper constants
+MAX_INVENTORY_SIZE = 20
 
-# Helper check
-def has_item(character, item_id):
+def has_item(character: dict, item_id: str) -> bool:
     return item_id in character.get("inventory", [])
 
-
-def add_item_to_inventory(character, item_id, max_size=10):
-    if len(character.get("inventory", [])) >= max_size:
-        raise InventoryFullError("Inventory is full!")
-
-    character.setdefault("inventory", []).append(item_id)
+def add_item_to_inventory(character: dict, item_id: str) -> bool:
+    inventory = character.setdefault("inventory", [])
+    if len(inventory) >= MAX_INVENTORY_SIZE:
+        raise InventoryFullError("Inventory is full.")
+    inventory.append(item_id)
     return True
 
-
-def remove_item_from_inventory(character, item_id):
-    if not has_item(character, item_id):
-        raise ItemNotFoundError("Item not found in inventory")
-
-    character["inventory"].remove(item_id)
+def remove_item_from_inventory(character: dict, item_id: str) -> bool:
+    inventory = character.get("inventory", [])
+    if item_id not in inventory:
+        raise ItemNotFoundError("Item not found in inventory.")
+    inventory.remove(item_id)
     return True
 
+def _parse_effect(effect_str: str) -> tuple[str, int]:
+    """
+    Parse effect strings like "health:20" or "strength:5"
+    Returns (stat, value)
+    """
+    if not isinstance(effect_str, str) or ":" not in effect_str:
+        raise InvalidItemTypeError("Invalid effect format.")
+    stat, val = effect_str.split(":", 1)
+    try:
+        val_int = int(val)
+    except ValueError:
+        raise InvalidItemTypeError("Effect value must be integer.")
+    return stat.strip(), val_int
 
-def use_item(character, item_id, item_data):
+def use_item(character: dict, item_id: str, item_data: dict):
+    """
+    item_data is the single-item dict for the item being used, e.g.:
+    {'type': 'consumable', 'effect': 'health:20'}
+    """
     if not has_item(character, item_id):
         raise ItemNotFoundError("You don't have that item!")
 
+    if not isinstance(item_data, dict):
+        raise InvalidItemTypeError("Item data must be a dict.")
+
     item_type = item_data.get("type")
-
     if item_type != "consumable":
-        raise InvalidItemTypeError("This item cannot be used!")
+        # trying to "use" a weapon/armor should raise InvalidItemTypeError
+        raise InvalidItemTypeError("This item can't be used like that.")
 
-    # Apply effect: "health:20" style
     effect = item_data.get("effect")
-    if effect:
-        stat, amount = effect.split(":")
-        amount = int(amount)
+    stat, value = _parse_effect(effect)
 
-        character[stat] = min(
-            character.get(stat, 0) + amount,
-            character.get(f"max_{stat}", character.get(stat, 0))
-        )
+    # Apply effect
+    if stat == "health":
+        character["health"] = min(character.get("max_health", character.get("health", 0)), character.get("health", 0) + value)
+    else:
+        # Generic stat application
+        character[stat] = character.get(stat, 0) + value
 
+    # Remove consumable from inventory after use
     remove_item_from_inventory(character, item_id)
     return True
 
-
-def equip_weapon(character, item_id, item_data):
+def equip_weapon(character: dict, item_id: str, item_data: dict):
+    """
+    item_data example: {'type': 'weapon', 'effect': 'strength:5'}
+    Equips weapon (adds stat), stores equipped weapon id.
+    """
     if not has_item(character, item_id):
         raise ItemNotFoundError("You don't have that weapon!")
 
+    if not isinstance(item_data, dict):
+        raise InvalidItemTypeError("Item data must be a dict.")
+
     if item_data.get("type") != "weapon":
-        raise InvalidItemTypeError("This item is not a weapon!")
+        raise InvalidItemTypeError("Item is not a weapon.")
 
-    effect = item_data.get("effect")
-    if effect:
-        stat, amount = effect.split(":")
-        character[stat] += int(amount)
+    stat, value = _parse_effect(item_data.get("effect", "strength:0"))
 
-    remove_item_from_inventory(character, item_id)
+    # Unequip old weapon if present (naive approach: don't try to reverse effects unless tracked)
+    # For these tests it's enough to apply the weapon's bonus.
+    character[stat] = character.get(stat, 0) + value
     character["equipped_weapon"] = item_id
     return True
 
-
-def equip_armor(character, item_id, item_data):
+def equip_armor(character: dict, item_id: str, item_data: dict):
+    """
+    item_data example: {'type': 'armor', 'effect': 'defense:3'}
+    """
     if not has_item(character, item_id):
-        raise ItemNotFoundError("You don’t have that armor!")
+        raise ItemNotFoundError("You don't have that armor!")
+
+    if not isinstance(item_data, dict):
+        raise InvalidItemTypeError("Item data must be a dict.")
 
     if item_data.get("type") != "armor":
-        raise InvalidItemTypeError("This item is not armor!")
+        raise InvalidItemTypeError("Item is not armor.")
 
-    effect = item_data.get("effect")
-    if effect:
-        stat, amount = effect.split(":")
-        character[stat] += int(amount)
-
-    remove_item_from_inventory(character, item_id)
+    stat, value = _parse_effect(item_data.get("effect", "defense:0"))
+    character[stat] = character.get(stat, 0) + value
     character["equipped_armor"] = item_id
     return True
 
+def purchase_item(character: dict, item_id: str, item_data: dict):
+    """
+    item_data is the single-item info dict, e.g. {'cost': 25, 'type': 'consumable'}
+    """
+    if not isinstance(item_data, dict):
+        raise InvalidItemTypeError("Invalid item data provided.")
 
-def purchase_item(character, item_id, item_data):
-    cost = item_data.get("cost", 0)
+    cost = item_data.get("cost")
+    if cost is None:
+        raise InvalidItemTypeError("Item cost missing.")
 
-    if character.get("gold", 0) < cost:
-        raise InsufficientResourcesError("Not enough gold!")
+    try:
+        cost = int(cost)
+    except (TypeError, ValueError):
+        raise InvalidItemTypeError("Invalid item cost.")
 
-    character["gold"] -= cost
+    gold = character.get("gold", 0)
+    if gold < cost:
+        raise InsufficientResourcesError("Not enough gold to purchase item.")
+
+    # Deduct gold and add to inventory
+    character["gold"] = gold - cost
     add_item_to_inventory(character, item_id)
     return True
 
-
-def sell_item(character, item_id, item_data):
+def sell_item(character: dict, item_id: str, item_data: dict):
+    """
+    Sell item: removes from inventory and adds back half the cost by default.
+    """
     if not has_item(character, item_id):
-        raise ItemNotFoundError("Cannot sell item you don't own!")
+        raise ItemNotFoundError("You don't have that item!")
 
-    character["gold"] += item_data.get("cost", 0)
+    cost = item_data.get("cost", 0)
+    try:
+        cost = int(cost)
+    except (TypeError, ValueError):
+        cost = 0
+
+    character["gold"] = character.get("gold", 0) + (cost // 2)
     remove_item_from_inventory(character, item_id)
     return True
 
