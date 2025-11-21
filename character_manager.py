@@ -10,9 +10,17 @@ This module handles character creation, loading, and saving.
 """
 import os
 import json
-from custom_exceptions import CharacterNotFoundError, InvalidSaveDataError, InvalidCharacterClassError
+from custom_exceptions import (
+    CharacterNotFoundError,
+    InvalidSaveDataError,
+    InvalidCharacterClassError,
+    CharacterDeadError
+)
 
-# Supported character classes
+# ============================================================================
+# CONSTANTS
+# ============================================================================
+
 CHARACTER_CLASSES = {
     "Warrior": {"strength": 10, "defense": 8, "health": 100},
     "Mage": {"strength": 4, "defense": 5, "health": 70, "mana": 100},
@@ -40,7 +48,8 @@ def create_character(name, char_class):
         "strength": base_stats["strength"],
         "defense": base_stats["defense"],
         "health": base_stats["health"],
-        "mana": base_stats.get("mana", 0),
+        "max_health": base_stats["health"],
+        "magic": base_stats.get("mana", 0),
         "inventory": [],
         "equipped": {},
         "active_quests": [],
@@ -52,7 +61,6 @@ def save_character(character, save_directory=SAVE_DIR):
     file_path = os.path.join(save_directory, f"{character['name']}_save.txt")
     try:
         with open(file_path, "w") as file:
-            # Serialize the character dict as JSON for robust saving
             json.dump(character, file, indent=4)
         return True
     except Exception as e:
@@ -67,25 +75,22 @@ def load_character(character_name, save_directory=SAVE_DIR):
 
     try:
         with open(file_path, "r") as file:
-            character = json.load(file)  # Parse JSON
+            character = json.load(file)
         return character
     except json.JSONDecodeError:
         raise InvalidSaveDataError("Invalid save format")
 
-
-def list_saved_characters(save_directory="data/save_games"):
+def list_saved_characters(save_directory=SAVE_DIR):
     if not os.path.exists(save_directory):
         return []
     
     names = []
     for filename in os.listdir(save_directory):
         if filename.endswith("_save.txt"):
-            name = filename.replace("_save.txt", "")
-            names.append(name)
+            names.append(filename.replace("_save.txt", ""))
     return names
 
-
-def delete_character(character_name, save_directory="data/save_games"):
+def delete_character(character_name, save_directory=SAVE_DIR):
     file_path = os.path.join(save_directory, f"{character_name}_save.txt")
     
     if not os.path.exists(file_path):
@@ -93,7 +98,6 @@ def delete_character(character_name, save_directory="data/save_games"):
 
     os.remove(file_path)
     return True
-
 
 # ============================================================================
 # CHARACTER OPERATIONS
@@ -116,7 +120,6 @@ def gain_experience(character, xp_amount):
 
     return character["experience"]
 
-
 def add_gold(character, amount):
     new_gold = character["gold"] + amount
     if new_gold < 0:
@@ -124,23 +127,19 @@ def add_gold(character, amount):
     character["gold"] = new_gold
     return new_gold
 
-
 def heal_character(character, amount):
     old_hp = character["health"]
     character["health"] = min(character["max_health"], character["health"] + amount)
     return character["health"] - old_hp
 
-
 def is_character_dead(character):
     return character["health"] <= 0
-
 
 def revive_character(character):
     if not is_character_dead(character):
         return False
     character["health"] = character["max_health"] // 2
     return True
-
 
 # ============================================================================
 # VALIDATION
