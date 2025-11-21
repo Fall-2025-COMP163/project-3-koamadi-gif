@@ -17,81 +17,77 @@ from custom_exceptions import MissingDataFileError, InvalidDataFormatError
 # ============================================================================
 
 def load_quests(filename="data/quests.txt"):
-    """
-    Load quests from a file.
-    Format per line:
-    quest_id|title|description|reward_xp|reward_gold|required_level|prerequisite
-    """
     if not os.path.exists(filename):
-        raise MissingDataFileError(f"Quest data file '{filename}' not found")
+        raise MissingDataFileError(f"Quests file '{filename}' not found.")
 
     quests = {}
-
-    with open(filename, "r") as file:
-        for line in file:
-            line = line.strip()
-            if not line:
-                continue
-
-            parts = line.split("|")
-            if len(parts) != 7:
-                raise InvalidDataFormatError("Quest data format invalid")
-
-            quest_id, title, desc, reward_xp, reward_gold, req_lvl, prereq = parts
-
-            try:
-                quests[quest_id] = {
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            for raw in f:
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = line.split("|")
+                if len(parts) != 7:
+                    raise InvalidDataFormatError("Quest line does not have 7 fields.")
+                quest_id, title, description, reward_xp, reward_gold, required_level, prerequisite = parts
+                try:
+                    reward_xp = int(reward_xp)
+                    reward_gold = int(reward_gold)
+                    required_level = int(required_level)
+                except ValueError:
+                    raise InvalidDataFormatError("Numeric field has invalid format in quest.")
+                quest = {
                     "quest_id": quest_id,
                     "title": title,
-                    "description": desc,
-                    "reward_xp": int(reward_xp),
-                    "reward_gold": int(reward_gold),
-                    "required_level": int(req_lvl),
-                    "prerequisite": prereq,
+                    "description": description,
+                    "reward_xp": reward_xp,
+                    "reward_gold": reward_gold,
+                    "required_level": required_level,
+                    "prerequisite": prerequisite
                 }
-            except ValueError:
-                raise InvalidDataFormatError("Numeric field invalid in quest data")
-
-    return quests
-
-# ============================================================================
-# ITEM DATA
-# ============================================================================
+                quests[quest_id] = quest
+        return quests
+    except UnicodeDecodeError:
+        raise InvalidDataFormatError("File encoding unreadable.")
+    except InvalidDataFormatError:
+        raise
+    except Exception as e:
+        # Any other I/O error treat as missing/unreadable for tests
+        raise InvalidDataFormatError(f"Unable to load quests: {e}")
 
 def load_items(filename="data/items.txt"):
-    """
-    Load items from a file.
-    Format per line:
-    item_id|type|cost|effect
-    """
     if not os.path.exists(filename):
-        raise MissingDataFileError(f"Item data file '{filename}' not found")
+        raise MissingDataFileError(f"Items file '{filename}' not found.")
 
     items = {}
-
-    with open(filename, "r") as file:
-        for line in file:
-            line = line.strip()
-            if not line:
-                continue
-
-            parts = line.split("|")
-            if len(parts) != 4:
-                raise InvalidDataFormatError("Item data format invalid")
-
-            item_id, type_, cost, effect = parts
-
-            try:
-                items[item_id] = {
-                    "item_id": item_id,
-                    "type": type_,
-                    "cost": int(cost),
-                    "effect": effect,
-                }
-            except ValueError:
-                raise InvalidDataFormatError("Numeric field invalid in item data")
-
-    return items
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            for raw in f:
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = line.split("|")
+                if len(parts) < 3:
+                    raise InvalidDataFormatError("Item line does not have enough fields.")
+                # Allow optional cost
+                item_id = parts[0]
+                item_type = parts[1]
+                effect = parts[2] if len(parts) >= 3 else ""
+                cost = None
+                if len(parts) >= 4 and parts[3] != "":
+                    try:
+                        cost = int(parts[3])
+                    except ValueError:
+                        raise InvalidDataFormatError("Item cost must be integer.")
+                items[item_id] = {"type": item_type, "effect": effect, "cost": cost}
+        return items
+    except UnicodeDecodeError:
+        raise InvalidDataFormatError("File encoding unreadable.")
+    except InvalidDataFormatError:
+        raise
+    except Exception as e:
+        raise InvalidDataFormatError(f"Unable to load items: {e}")
 
 # ============================================================================
 # VALIDATION
@@ -113,13 +109,19 @@ def validate_quest_data(data):
 
 
 
-def validate_item_data(data):
-    required_keys = ["item_id", "type", "cost", "effect"]
-
-    for key in required_keys:
-        if key not in data:
-            return False
-
+def validate_quest_data(quest: dict) -> bool:
+    required_keys = {"quest_id", "title", "description", "reward_xp", "reward_gold", "required_level", "prerequisite"}
+    if not isinstance(quest, dict):
+        raise InvalidDataFormatError("Quest must be a dict.")
+    if not required_keys.issubset(set(quest.keys())):
+        raise InvalidDataFormatError("Quest missing required fields.")
+    # numeric checks
+    try:
+        int(quest["reward_xp"])
+        int(quest["reward_gold"])
+        int(quest["required_level"])
+    except (TypeError, ValueError):
+        raise InvalidDataFormatError("Quest numeric fields invalid.")
     return True
 
 # ============================================================================
