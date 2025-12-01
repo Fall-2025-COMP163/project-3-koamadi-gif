@@ -30,7 +30,7 @@ def create_character(name, character_class):
         "Cleric": {"health": 100, "strength": 10, "magic": 15}
     }
 
-    if character_class not in valid_classes:
+    if character_class not in classes:
         raise InvalidCharacterClassError(
             f"'{character_class}' is not a valid class. "
             f"Valid classes: {', '.join(classes.keys())}"
