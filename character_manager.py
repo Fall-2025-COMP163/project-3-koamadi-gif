@@ -24,7 +24,7 @@ from custom_exceptions import (
 def create_character(name, character_class):
     # TODO: Implement character creation
     classes = {
-        "Warrior": {"health": 120, "strength": 20, "magic": 5},
+        "Warrior": {"health": 120, "strength": 15, "magic": 5},
         "Mage": {"health": 80, "strength": 8, "magic": 20},
         "Rogue": {"health": 90, "strength": 12, "magic": 10},
         "Cleric": {"health": 100, "strength": 10, "magic": 15}
