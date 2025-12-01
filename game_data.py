@@ -21,21 +21,6 @@ from custom_exceptions import (
 # ============================================================================
 
 def load_quests(filename="data/quests.txt"):
-    """
-    Load quest data from file
-    
-    Expected format per quest (separated by blank lines):
-    QUEST_ID: unique_quest_name
-    TITLE: Quest Display Title
-    DESCRIPTION: Quest description text
-    REWARD_XP: 100
-    REWARD_GOLD: 50
-    REQUIRED_LEVEL: 1
-    PREREQUISITE: previous_quest_id (or NONE)
-    
-    Returns: Dictionary of quests {quest_id: quest_data_dict}
-    Raises: MissingDataFileError, InvalidDataFormatError, CorruptedDataError
-    """
     if not os.path.exists(filename):
         raise MissingDataFileError(f"Missing file: {filename}")
 
@@ -58,27 +43,8 @@ def load_quests(filename="data/quests.txt"):
         quests[quest["quest_id"]] = quest
 
     return quests
-    # TODO: Implement this function
-    # Must handle:
-    # - FileNotFoundError → raise MissingDataFileError
-    # - Invalid format → raise InvalidDataFormatError
-    # - Corrupted/unreadable data → raise CorruptedDataError
 
 def load_items(filename="data/items.txt"):
-    """
-    Load item data from file
-    
-    Expected format per item (separated by blank lines):
-    ITEM_ID: unique_item_name
-    NAME: Item Display Name
-    TYPE: weapon|armor|consumable
-    EFFECT: stat_name:value (e.g., strength:5 or health:20)
-    COST: 100
-    DESCRIPTION: Item description
-    
-    Returns: Dictionary of items {item_id: item_data_dict}
-    Raises: MissingDataFileError, InvalidDataFormatError, CorruptedDataError
-    """
     if not os.path.exists(filename):
         raise MissingDataFileError(f"Missing file: {filename}")
 
@@ -101,19 +67,8 @@ def load_items(filename="data/items.txt"):
         items[item["item_id"]] = item
 
     return items
-    # TODO: Implement this function
-    # Must handle same exceptions as load_quests
 
 def validate_quest_data(quest_dict):
-    """
-    Validate that quest dictionary has all required fields
-    
-    Required fields: quest_id, title, description, reward_xp, 
-                    reward_gold, required_level, prerequisite
-    
-    Returns: True if valid
-    Raises: InvalidDataFormatError if missing required fields
-    """
     required = [
         "quest_id", "title", "description",
         "reward_xp", "reward_gold",
@@ -133,9 +88,6 @@ def validate_quest_data(quest_dict):
         raise InvalidDataFormatError("Quest numeric fields must be integers")
 
     return True
-    # TODO: Implement validation
-    # Check that all required keys exist
-    # Check that numeric values are actually numbers
 
 def validate_item_data(item_dict):
     """
@@ -162,7 +114,6 @@ def validate_item_data(item_dict):
         raise InvalidDataFormatError("Item cost must be an integer")
 
     return True
-    # TODO: Implement validation
 
 def create_default_data_files():
     """
@@ -261,10 +212,6 @@ def parse_quest_block(lines):
         quest[key] = value
 
     return quest
-    # TODO: Implement parsing logic
-    # Split each line on ": " to get key-value pairs
-    # Convert numeric strings to integers
-    # Handle parsing errors gracefully
 
 def parse_item_block(lines):
 
